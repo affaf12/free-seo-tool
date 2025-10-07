@@ -8,7 +8,7 @@ import json
 
 st.set_page_config(page_title="Pro+ SEO Analyzer", layout="wide")
 st.title("🚀 Pro+ SEO Analyzer")
-st.write("Advanced On-Page, Technical, Off-Page, Semantic SEO Analysis, and SERP Estimation with actionable recommendations!")
+st.write("Advanced On-Page, Technical, Off-Page, Semantic SEO Analysis, SERP Estimation with actionable recommendations!")
 
 # ---------- Helper Functions ----------
 def get_html(url):
@@ -84,41 +84,88 @@ def simple_speed_test(url):
     except:
         return None
 
-# ---------- Scoring Functions ----------
+# ---------- Scoring Functions with Expected Boost ----------
 def calculate_onpage_score(meta, headings, total_words):
     score = 0
     suggestions = []
-    if 10 <= len(meta["title"]) <= 60: score += 20
-    else: suggestions.append("Title length should be 10-60 characters")
-    if 50 <= len(meta["description"]) <= 160: score += 20
-    else: suggestions.append("Meta description should be 50-160 characters")
-    if len(headings["h1"]) >= 1: score += 20
-    else: suggestions.append("Add at least one H1 heading")
-    if total_words >= 300: score += 20
-    else: suggestions.append("Add more content (min 300 words)")
-    if meta["canonical"]: score += 20
-    else: suggestions.append("Add a canonical tag")
-    return score, suggestions
+    improvements = []
+
+    if 10 <= len(meta["title"]) <= 60:
+        score += 20
+    else:
+        suggestions.append("Title length should be 10-60 characters")
+        improvements.append({"fix": '<title>Your Page Title</title>', "boost": 10})
+
+    if 50 <= len(meta["description"]) <= 160:
+        score += 20
+    else:
+        suggestions.append("Meta description should be 50-160 characters")
+        improvements.append({"fix": '<meta name="description" content="Your meta description here">', "boost": 10})
+
+    if len(headings["h1"]) >= 1:
+        score += 20
+    else:
+        suggestions.append("Add at least one H1 heading")
+        improvements.append({"fix": '<h1>Your Main Heading</h1>', "boost": 10})
+
+    if total_words >= 300:
+        score += 20
+    else:
+        suggestions.append("Add more content (min 300 words)")
+        improvements.append({"fix": "Add high-quality content relevant to your topic", "boost": 10})
+
+    if meta["canonical"]:
+        score += 20
+    else:
+        suggestions.append("Add a canonical tag")
+        improvements.append({"fix": '<link rel="canonical" href="https://yourwebsite.com/page-url">', "boost": 10})
+
+    return score, suggestions, improvements
 
 def calculate_technical_score(robots, sitemap, viewport, soup):
     score = 0
     suggestions = []
-    if "not available" not in robots.lower(): score += 30
-    else: suggestions.append("Add robots.txt")
-    if "not available" not in sitemap.lower(): score += 30
-    else: suggestions.append("Add sitemap.xml")
-    if viewport: score += 20
-    else: suggestions.append("Add viewport meta for mobile-friendliness")
-    # Structured data check
+    improvements = []
+
+    if "not available" not in robots.lower():
+        score += 30
+    else:
+        suggestions.append("Add robots.txt")
+        improvements.append({"fix": "Create a robots.txt file in root directory with rules", "boost": 15})
+
+    if "not available" not in sitemap.lower():
+        score += 30
+    else:
+        suggestions.append("Add sitemap.xml")
+        improvements.append({"fix": "Generate sitemap.xml and submit to Google Search Console", "boost": 15})
+
+    if viewport:
+        score += 20
+    else:
+        suggestions.append("Add viewport meta for mobile-friendliness")
+        improvements.append({"fix": '<meta name="viewport" content="width=device-width, initial-scale=1.0">', "boost": 10})
+
     schema_found = bool(soup.find_all("script", type="application/ld+json"))
-    if schema_found: score += 20
-    else: suggestions.append("Add structured data / schema (JSON-LD recommended)")
-    return score, suggestions
+    if schema_found:
+        score += 20
+    else:
+        suggestions.append("Add structured data / schema (JSON-LD recommended)")
+        improvements.append({"fix": '''<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Your Page Name",
+  "url": "https://yourwebsite.com/page-url"
+}
+</script>''', "boost": 10})
+
+    return score, suggestions, improvements
 
 def calculate_offpage_score():
     score = 50
     suggestions = ["Check backlinks and domain authority"]
-    return score, suggestions
+    improvements = [{"fix": "Acquire high-quality backlinks from authoritative sites", "boost": 20}]
+    return score, suggestions, improvements
 
 def calculate_semantic_score(text, main_keyword="seo"):
     keyword_count = text.lower().count(main_keyword.lower())
@@ -126,9 +173,16 @@ def calculate_semantic_score(text, main_keyword="seo"):
     density = (keyword_count / total_words) * 100 if total_words else 0
     score = min(100, density * 2)
     suggestions = []
-    if density < 1: suggestions.append(f"Use keyword '{main_keyword}' more frequently (density: {density:.2f}%)")
-    elif density > 5: suggestions.append(f"Keyword '{main_keyword}' density too high (density: {density:.2f}%)")
-    return int(score), suggestions
+    improvements = []
+
+    if density < 1:
+        suggestions.append(f"Use keyword '{main_keyword}' more frequently (density: {density:.2f}%)")
+        improvements.append({"fix": f"Include '{main_keyword}' in H1, H2, meta description, first paragraph", "boost": 10})
+    elif density > 5:
+        suggestions.append(f"Keyword '{main_keyword}' density too high (density: {density:.2f}%)")
+        improvements.append({"fix": "Reduce keyword stuffing, use synonyms/LSI keywords", "boost": 5})
+
+    return int(score), suggestions, improvements
 
 # ---------- SERP Rank Estimator ----------
 def estimate_serp_rank(overall_score):
@@ -155,10 +209,11 @@ if st.button("Analyze SEO"):
         speed_score = pagespeed_api(url) or simple_speed_test(url)
 
         # ---------- Calculate Scores ----------
-        onpage_score, onpage_sugg = calculate_onpage_score(meta, headings, total_words)
-        technical_score, technical_sugg = calculate_technical_score(robots, sitemap, meta["viewport"], soup)
-        offpage_score, offpage_sugg = calculate_offpage_score()
-        semantic_score, semantic_sugg = calculate_semantic_score(full_text, main_keyword)
+        onpage_score, onpage_sugg, onpage_imp = calculate_onpage_score(meta, headings, total_words)
+        technical_score, technical_sugg, technical_imp = calculate_technical_score(robots, sitemap, meta["viewport"], soup)
+        offpage_score, offpage_sugg, offpage_imp = calculate_offpage_score()
+        semantic_score, semantic_sugg, semantic_imp = calculate_semantic_score(full_text, main_keyword)
+
         overall_score = round((onpage_score + technical_score + offpage_score + semantic_score)/4)
         serp_estimate = estimate_serp_rank(overall_score)
 
@@ -171,7 +226,14 @@ if st.button("Analyze SEO"):
         st.subheader("Overall SEO Score"); st.progress(overall_score); st.write(f"Overall Score: {overall_score}/100")
         st.subheader("📈 Google SERP Rank Estimator"); st.success(serp_estimate)
 
-        # ---------- Detailed On-Page ----------
+        # ---------- Mini SEO Roadmap with Expected Boost ----------
+        st.header("🚀 SEO Roadmap: Actionable Fixes with Expected Boost")
+        roadmap = onpage_imp + technical_imp + offpage_imp + semantic_imp
+        roadmap = sorted(roadmap, key=lambda x: x["boost"], reverse=True)
+        for item in roadmap:
+            st.code(f'{item["fix"]}  →  Expected Boost: +{item["boost"]} points')
+
+        # ---------- Detailed info ----------
         st.header("🔍 Detailed On-Page SEO")
         st.write("**Title:**", meta["title"])
         st.write("**Description:**", meta["description"])
@@ -180,7 +242,6 @@ if st.button("Analyze SEO"):
         st.write("**Top Words:**", top_words)
         st.write("**Headings:**"); [st.write(f"{tag.upper()} ({len(vals)}) → {vals[:5]}") for tag, vals in headings.items()]
 
-        # ---------- Detailed Technical ----------
         st.header("⚙️ Detailed Technical SEO")
         st.write("**robots.txt:**"); st.code(robots)
         st.write("**sitemap.xml:**"); st.code(sitemap)
