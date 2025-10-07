@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import re
+import time
 
 st.set_page_config(page_title="Free SEO Tool", layout="wide")
 st.title("🧰 Free SEO Analyzer")
@@ -46,21 +47,40 @@ def get_word_stats(soup):
 def robots_and_sitemap(url):
     parsed = urlparse(url)
     base = f"{parsed.scheme}://{parsed.netloc}"
-    robots = requests.get(urljoin(base, "/robots.txt")).text[:1000]
-    sitemap = requests.get(urljoin(base, "/sitemap.xml")).text[:1000]
+    try:
+        robots = requests.get(urljoin(base, "/robots.txt"), timeout=10).text[:1000]
+    except:
+        robots = "Not available"
+    try:
+        sitemap = requests.get(urljoin(base, "/sitemap.xml"), timeout=10).text[:1000]
+    except:
+        sitemap = "Not available"
     return robots, sitemap
 
 def pagespeed_api(url):
-    api = f"https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={url}"
+    api_key = "AIzaSyDdhpIwUvdcSG8SIwdcA6xBfSgYqIwE_S8"  # Your API Key
+    api = f"https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={url}&key={api_key}"
     try:
-        data = requests.get(api).json()
+        resp = requests.get(api, timeout=15)
+        data = resp.json()
         score = data["lighthouseResult"]["categories"]["performance"]["score"] * 100
         return score
+    except Exception as e:
+        print("PageSpeed API Error:", e)
+        return None
+
+def simple_speed_test(url):
+    start = time.time()
+    try:
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        return round(time.time() - start, 2)
     except:
         return None
 
 # ---------- UI ----------
 url = st.text_input("Enter URL", "https://example.com")
+
 if st.button("Analyze SEO"):
     html = get_html(url)
     if not html:
@@ -68,7 +88,7 @@ if st.button("Analyze SEO"):
     else:
         soup = BeautifulSoup(html, "html.parser")
 
-        # On-Page
+        # On-Page SEO
         st.header("🔍 On-Page SEO")
         meta = extract_meta(soup)
         st.write("**Title:**", meta["title"])
@@ -84,7 +104,7 @@ if st.button("Analyze SEO"):
         st.write("**Word Count:**", total)
         st.write("**Top Words:**", top)
 
-        # Technical
+        # Technical SEO
         st.header("⚙️ Technical SEO")
         robots, sitemap = robots_and_sitemap(url)
         st.write("**robots.txt:**")
@@ -92,13 +112,19 @@ if st.button("Analyze SEO"):
         st.write("**sitemap.xml:**")
         st.code(sitemap)
 
+        # Page Speed
         score = pagespeed_api(url)
         if score:
             st.success(f"PageSpeed Score: {score}/100")
         else:
-            st.warning("PageSpeed score unavailable.")
+            st.warning("PageSpeed API unavailable, running fallback speed test...")
+            speed = simple_speed_test(url)
+            if speed:
+                st.info(f"⏱️ Page loaded in {speed} seconds (fallback test)")
+            else:
+                st.error("⚠️ Could not measure page speed.")
 
-        # Summary
+        # Summary Suggestions
         st.header("✅ Summary Suggestions")
         suggestions = []
         if len(meta["title"]) == 0:
